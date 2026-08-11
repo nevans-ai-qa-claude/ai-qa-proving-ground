@@ -13,10 +13,13 @@ jobs:
     name: Clean baseline
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # 22 rather than 20. The runner images were already forcing these actions onto
+          # Node 24 under the v20 deprecation, so pinning the toolchain to a supported LTS
+          # keeps CI on the same footing as local development instead of drifting.
+          node-version: 22
           cache: npm
 
       - run: npm ci
@@ -40,7 +43,7 @@ jobs:
       - name: Validate run events against the contract
         run: npm run validate:events
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         if: always()
         with:
           name: run-events
@@ -52,10 +55,13 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          # 22 rather than 20. The runner images were already forcing these actions onto
+          # Node 24 under the v20 deprecation, so pinning the toolchain to a supported LTS
+          # keeps CI on the same footing as local development instead of drifting.
+          node-version: 22
           cache: npm
 
       - run: npm ci
