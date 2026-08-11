@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    // CommonJS rather than ESM, deliberately. Playwright's transpiler, tsx and Node
+    // all handle CJS without extension gymnastics on relative imports. This project
+    // exists to produce reliable signal about the system under test; spending that
+    // reliability budget on module-resolution edge cases would be a poor trade.
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "exactOptionalPropertyTypes": false,
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts", "reporters/**/*.ts"],
+  "exclude": ["node_modules", "src/public"]
+}

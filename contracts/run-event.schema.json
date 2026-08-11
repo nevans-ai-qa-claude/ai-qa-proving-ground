@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nevans/ai-qa/contracts/run-event.schema.json",
+  "title": "Test Run Event",
+  "description": "The canonical record of a single test execution run. Every project in the AI-QA portfolio either produces or consumes this document. Producers are test harnesses; consumers are triage, risk-selection, and analytics services.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "runId",
+    "startedAt",
+    "finishedAt",
+    "durationMs",
+    "trigger",
+    "environment",
+    "injection",
+    "totals",
+    "results"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "description": "Semver of this contract. Consumers MUST reject majors they do not understand.",
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "runId": {
+      "description": "Globally unique id for this run. Stable primary key across all downstream stores.",
+      "type": "string",
+      "minLength": 1
+    },
+    "startedAt": { "type": "string", "format": "date-time" },
+    "finishedAt": { "type": "string", "format": "date-time" },
+    "durationMs": { "type": "integer", "minimum": 0 },
+
+    "trigger": {
+      "description": "What caused this run. Distinguishes human-initiated runs from CI and from agent-initiated exploration.",
+      "type": "string",
+      "enum": ["local", "ci", "scheduled", "agent", "replay"]
+    },
+
+    "git": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sha": { "type": "string" },
+        "branch": { "type": "string" },
+        "dirty": {
+          "description": "True if the working tree had uncommitted changes. A dirty run is not reproducible; consumers should weight it accordingly.",
+          "type": "boolean"
+        }
+      }
+    },
+
+    "environment": {
+      "type": "object",
+      "required": ["os", "baseUrl", "ci"],
+      "additionalProperties": false,
+      "properties": {
+        "os": { "type": "string" },
+        "nodeVersion": { "type": "string" },
+        "runnerVersion": {
+          "description": "Version of the test runner, e.g. the Playwright version.",
+          "type": "string"
+        },
+        "baseUrl": { "type": "string" },
+        "ci": { "type": "boolean" },
+        "workers": { "type": "integer", "minimum": 1 },
+        "shard": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "current": { "type": "integer", "minimum": 1 },
+            "total": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+
+    "injection": {
+      "description": "Which faults were deliberately enabled for this run. This is what makes a run self-describing: months later you can reconstruct exactly what was wrong with the system under test. Real-world producers emit empty arrays here.",
+      "type": "object",
+      "required": ["defects", "flakes", "seed"],
+      "additionalProperties": false,
+      "properties": {
+        "defects": {
+          "description": "Defect ids from defects.json that were active.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^D\\d{3}$" }
+        },
+        "flakes": {
+          "description": "Flake id to trigger probability (0..1) for this run.",
+          "type": "object",
+          "propertyNames": { "pattern": "^F\\d{3}$" },
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "seed": {
+          "description": "PRNG seed used for flake injection. Same seed plus same flake config reproduces the same run.",
+          "type": "integer"
+        }
+      }
+    },
+
+    "totals": {
+      "type": "object",
+      "required": ["total", "passed", "failed", "flaky", "skipped", "timedOut"],
+      "additionalProperties": false,
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 },
+        "flaky": {
+          "description": "Tests that failed at least once then passed on retry.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": { "type": "integer", "minimum": 0 },
+        "timedOut": { "type": "integer", "minimum": 0 }
+      }
+    },
+
+    "results": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/testResult" }
+    }
+  },
+
+  "$defs": {
+    "testResult": {
+      "type": "object",
+      "required": ["testId", "title", "titlePath", "file", "status", "durationMs", "attempts"],
+      "additionalProperties": false,
+      "properties": {
+        "testId": {
+          "description": "Stable hash of file + full title path. MUST NOT change between runs when the test is untouched — downstream history correlation depends on it.",
+          "type": "string",
+          "minLength": 1
+        },
+        "title": { "type": "string" },
+        "titlePath": {
+          "description": "Describe-block ancestry, outermost first.",
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "file": {
+          "description": "Repo-relative POSIX path. Normalised so Windows and Linux runs correlate.",
+          "type": "string"
+        },
+        "line": { "type": "integer", "minimum": 1 },
+        "suite": { "type": "string", "enum": ["e2e", "api", "unit", "visual", "exploratory"] },
+        "tags": { "type": "array", "items": { "type": "string" } },
+
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed", "timedOut", "skipped", "interrupted"]
+        },
+        "expectedStatus": { "type": "string", "enum": ["passed", "failed", "skipped"] },
+        "flaky": {
+          "description": "True when the test failed at least once and then passed within its retry budget.",
+          "type": "boolean"
+        },
+        "attempts": { "type": "integer", "minimum": 1 },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "startedAt": { "type": "string", "format": "date-time" },
+        "workerIndex": { "type": "integer", "minimum": 0 },
+
+        "error": {
+          "description": "Present only for non-passing results. The fields here are the raw material for clustering and classification.",
+          "type": ["object", "null"],
+          "additionalProperties": false,
+          "properties": {
+            "message": { "type": "string" },
+            "stack": { "type": "string" },
+            "snippet": {
+              "description": "Source excerpt around the failure point.",
+              "type": "string"
+            },
+            "matcherName": { "type": "string" },
+            "expected": { "type": "string" },
+            "actual": { "type": "string" },
+            "locator": {
+              "description": "The selector involved, when the failure was a locator failure. Consumed directly by the self-healing-locator project.",
+              "type": "string"
+            },
+            "signature": {
+              "description": "Normalised, de-parameterised form of the error message. Numbers, uuids, timestamps and paths are replaced with placeholders so identical root causes collide into one cluster key.",
+              "type": "string"
+            }
+          }
+        },
+
+        "artifacts": {
+          "description": "Paths relative to the run's artifact directory.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "screenshots": { "type": "array", "items": { "type": "string" } },
+            "video": { "type": "string" },
+            "trace": { "type": "string" },
+            "dom": {
+              "description": "Serialised DOM captured at failure. Required input for locator healing.",
+              "type": "string"
+            },
+            "console": { "type": "string" },
+            "network": { "type": "string" }
+          }
+        },
+
+        "groundTruth": {
+          "description": "OPTIONAL and non-authoritative. Populated only by the proving ground, which knows which faults it injected. Real producers omit this. Downstream classifiers MUST NOT read it at inference time — it exists solely to score them afterwards.",
+          "type": "object",
+          "required": ["expectedClassification"],
+          "additionalProperties": false,
+          "properties": {
+            "expectedClassification": {
+              "type": "string",
+              "enum": ["product-bug", "test-bug", "environment", "flake", "pass"]
+            },
+            "defectIds": { "type": "array", "items": { "type": "string" } },
+            "notes": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

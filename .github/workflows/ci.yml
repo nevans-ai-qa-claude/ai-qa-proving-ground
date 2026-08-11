@@ -1,0 +1,67 @@
+name: proving-ground
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Manifest verification is slow, so it runs nightly rather than per-push.
+    - cron: '0 3 * * *'
+
+jobs:
+  baseline:
+    name: Clean baseline
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run typecheck
+
+      # Milliseconds, no browser required. Catches manifest drift — a defect nothing
+      # gates on, a spec annotation pointing at an id that no longer exists — which would
+      # otherwise keep the suite green while quietly making the corpus wrong.
+      - name: Check manifest consistency
+        run: npm run check:consistency
+
+      # The baseline must be entirely green — the seeded test bugs are latent and do not
+      # fire under these conditions. If this job goes red, the instrument itself is broken
+      # and no downstream measurement can be trusted.
+      - name: Clean run
+        run: npm run test:clean
+
+      # The contract check. A producer that drifts from the schema breaks consumers
+      # silently, which is the most expensive failure mode in a contract-first design.
+      - name: Validate run events against the contract
+        run: npm run validate:events
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: run-events
+          path: artifacts/runs/
+          retention-days: 14
+
+  verify-manifest:
+    name: Verify the answer key
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+
+      # Asserts that every defect in the manifest is genuinely caught by the test that
+      # claims to catch it. Drift here would invalidate every accuracy figure computed
+      # downstream, while still looking entirely plausible.
+      - run: npm run verify:manifest

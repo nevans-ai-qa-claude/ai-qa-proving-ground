@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proving Ground Store</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<!--
+  F002 injection point. When the flake fires this banner is rendered over the header for
+  a randomised interval, intercepting pointer events on the cart link beneath it.
+  Playwright reports this as an element-intercepts-pointer-events error, which is highly
+  distinctive and therefore the easiest flake in the manifest to cluster.
+-->
+<div id="promo-banner" class="promo-banner" data-testid="promo-banner" hidden>
+  Free delivery on orders over $50
+  <button type="button" class="promo-close" data-testid="promo-close" aria-label="Dismiss">&times;</button>
+</div>
+
+<header class="site-header">
+  <a class="brand" href="#" data-testid="brand">Proving&nbsp;Ground</a>
+
+  <form class="search" data-testid="search-form" autocomplete="off">
+    <input type="search" name="q" placeholder="Search products" data-testid="search-input" aria-label="Search products">
+    <button type="submit" data-testid="search-submit">Search</button>
+  </form>
+
+  <nav class="nav">
+    <a href="#" data-testid="nav-catalog" data-view="catalog">Catalog</a>
+    <a href="#" data-testid="nav-cart" data-view="cart">
+      Cart <span class="badge" data-testid="cart-badge">0</span>
+    </a>
+    <span class="who" data-testid="current-user" hidden></span>
+    <button type="button" class="linkish" data-testid="logout" hidden>Sign out</button>
+  </nav>
+</header>
+
+<main>
+
+  <!-- ---------------------------------------------------------------- login -->
+  <section id="view-login" class="view" data-testid="view-login">
+    <h1>Sign in</h1>
+    <form class="card form" data-testid="login-form">
+      <label>Email
+        <input type="email" name="email" value="qa@example.com" data-testid="login-email" required>
+      </label>
+      <label>Password
+        <input type="password" name="password" data-testid="login-password" required>
+      </label>
+      <button type="submit" data-testid="login-submit">Sign in</button>
+      <p class="error" data-testid="login-error" hidden></p>
+      <p class="hint">Password for the seeded account is <code>correct-horse</code>.</p>
+    </form>
+  </section>
+
+  <!-- -------------------------------------------------------------- catalog -->
+  <section id="view-catalog" class="view" data-testid="view-catalog" hidden>
+    <h1>Catalog</h1>
+    <p class="muted" data-testid="catalog-status"></p>
+
+    <!--
+      Cards are rendered as direct children of this grid with no wrapper element. That is
+      what makes `.product-card:nth-child(3)` a viable selector, and therefore what makes
+      the D051 test bug a realistic mistake rather than a contrived one. Each card also
+      carries a stable data-product-id, so the correct selector exists alongside the
+      brittle one and locator healing has a known-good target to be scored against.
+    -->
+    <div id="catalog-grid" class="grid" data-testid="catalog-grid"></div>
+
+    <h2>Recently viewed</h2>
+    <ul class="recent" data-testid="recently-viewed"></ul>
+  </section>
+
+  <!-- ----------------------------------------------------------------- cart -->
+  <section id="view-cart" class="view" data-testid="view-cart" hidden>
+    <h1>Your cart</h1>
+    <table class="cart-table">
+      <thead>
+        <tr><th>Item</th><th>Qty</th><th class="num">Line total</th><th></th></tr>
+      </thead>
+      <tbody data-testid="cart-lines"></tbody>
+    </table>
+    <p class="empty" data-testid="cart-empty" hidden>Your cart is empty.</p>
+    <p class="total">Subtotal <strong data-testid="cart-subtotal">$0.00</strong></p>
+    <button type="button" data-testid="proceed-to-checkout">Proceed to checkout</button>
+  </section>
+
+  <!-- ------------------------------------------------------------- checkout -->
+  <section id="view-checkout" class="view" data-testid="view-checkout" hidden>
+    <h1>Checkout</h1>
+    <form class="card form" data-testid="checkout-form">
+      <label>Discount code
+        <input type="text" name="discountCode" placeholder="SAVE10" data-testid="discount-code" autocomplete="off">
+      </label>
+      <p class="total">Order total <strong data-testid="checkout-total">$0.00</strong></p>
+      <button type="submit" data-testid="place-order">Place order</button>
+      <p class="error" data-testid="checkout-error" hidden></p>
+    </form>
+  </section>
+
+  <!-- --------------------------------------------------------- confirmation -->
+  <section id="view-confirmation" class="view" data-testid="view-confirmation" hidden>
+    <h1>Order placed</h1>
+    <div class="card">
+      <p>Confirmation number</p>
+      <p class="confirmation" data-testid="confirmation-number"></p>
+      <p>Total charged <strong data-testid="confirmation-total"></strong></p>
+      <button type="button" data-testid="back-to-catalog">Back to catalog</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="/app.js"></script>
+</body>
+</html>

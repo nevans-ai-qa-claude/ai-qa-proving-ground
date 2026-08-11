@@ -1,0 +1,14 @@
+# Normalise line endings.
+#
+# Development happens on Windows and CI runs on Ubuntu. Without this, every file committed
+# from Windows carries CRLF, and the diffs between a local run and a CI run become noise
+# that hides real changes. `text=auto eol=lf` stores everything as LF in the repository
+# while leaving working-directory endings to the platform.
+* text=auto eol=lf
+
+# Binary artifacts must never be line-ending converted.
+*.png binary
+*.jpg binary
+*.webm binary
+*.zip binary
+*.ico binary

@@ -1,0 +1,18 @@
+node_modules/
+
+# Run events are regenerable and grow without bound. The corpus belongs in object storage
+# or a release artifact, not in git history.
+artifacts/
+playwright-report/
+test-results/
+
+.env
+.env.local
+
+*.log
+npm-debug.log*
+
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

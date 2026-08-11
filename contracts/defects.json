@@ -1,0 +1,309 @@
+{
+  "$schema": "./defects.schema.json",
+  "version": "1.0.0",
+  "notes": {
+    "purpose": "Ground truth for the proving ground. Every fault the system under test can exhibit is catalogued here with the classification a correct triage system should assign. Downstream projects are scored against this file.",
+    "idRanges": {
+      "D001-D049": "product bugs — defects in application code, toggled via the DEFECTS env var",
+      "D050-D079": "test bugs — defects in the test code itself; always present, not toggleable, because they live in the spec files",
+      "D080-D099": "environment faults — infrastructure-shaped failures, toggled via the DEFECTS env var",
+      "F001-F049": "flakes — nondeterministic, probability-driven, toggled via the FLAKES env var"
+    },
+    "classifications": {
+      "product-bug": "The system under test is wrong. A ticket should be filed against the product.",
+      "test-bug": "The test is wrong. The product is fine. The fix belongs in the spec.",
+      "environment": "Infrastructure, network or configuration. Neither product nor test code is at fault.",
+      "flake": "Nondeterministic. The same code passes and fails without changing. Needs stabilising, not fixing."
+    },
+    "difficultyMeaning": {
+      "easy": "The error message alone is close to sufficient to classify correctly.",
+      "moderate": "Requires reading the stack, the assertion values, or the run's injection block.",
+      "hard": "Deliberately confusable with another class. These are the entries that make an accuracy number meaningful — report them separately."
+    },
+    "designPrinciple": "Roughly a third of entries are marked hard, and they are hard in both directions: product bugs that present intermittently and look like flakes, and flakes whose failure text is indistinguishable from a genuine assertion failure. A classifier that scores well on easy entries and poorly on hard ones is doing keyword matching, and the stratified report will show it."
+  },
+
+  "defects": [
+    {
+      "id": "D001",
+      "title": "Cart badge does not update after the second item is added",
+      "classification": "product-bug",
+      "layer": "ui",
+      "surface": "cart",
+      "severity": "medium",
+      "difficulty": "easy",
+      "symptom": "Header cart badge reads 1 after two distinct products are added.",
+      "rootCause": "The badge re-render is bound to cart creation rather than to cart mutation, so only the first add repaints it.",
+      "detectedBy": ["e2e/cart.spec.ts :: shows a running item count in the header badge"],
+      "notes": "Baseline easy case. A stable, fully deterministic assertion failure with clear expected/actual values."
+    },
+    {
+      "id": "D002",
+      "title": "Place-order button stays enabled during submission",
+      "classification": "product-bug",
+      "layer": "ui",
+      "surface": "checkout",
+      "severity": "high",
+      "difficulty": "hard",
+      "symptom": "Rapid double-click on Place order creates two orders. Under a slow submit the second click lands before the first response.",
+      "rootCause": "No disabled state or in-flight guard on the submit handler.",
+      "detectedBy": ["e2e/checkout.spec.ts :: does not create a duplicate order on double submit"],
+      "notes": "HARD, and the most important entry in the file. The failure is timing-dependent: on a fast machine the second click may lose the race and the test passes. It therefore presents as a flake while being a genuine, serious product bug. Any classifier that treats intermittency as sufficient evidence of flakiness will get this wrong — which is exactly the mistake real triage engineers make."
+    },
+    {
+      "id": "D003",
+      "title": "Whole-number prices render without cents",
+      "classification": "product-bug",
+      "layer": "ui",
+      "surface": "catalog",
+      "severity": "low",
+      "difficulty": "easy",
+      "symptom": "A product priced at 20 displays as $20 rather than $20.00.",
+      "rootCause": "Formatting uses string coercion instead of a fixed-decimal currency formatter.",
+      "detectedBy": ["e2e/catalog.spec.ts :: formats every price to two decimal places"],
+      "notes": "Cosmetic but deterministic. Useful as a low-severity control — a good triage system should classify it correctly AND rank it low."
+    },
+    {
+      "id": "D004",
+      "title": "Product search is case-sensitive",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "catalog",
+      "severity": "medium",
+      "difficulty": "easy",
+      "symptom": "Searching 'laptop' returns zero results while 'Laptop' returns one.",
+      "rootCause": "Substring match performed without normalising case on either side.",
+      "detectedBy": [
+        "api/products.spec.ts :: matches product names irrespective of case",
+        "e2e/catalog.spec.ts :: finds a product by lowercase search term"
+      ],
+      "notes": "Deliberately detected by both an API test and a UI test. Downstream clustering should recognise these two failures share one root cause and collapse them — that collapse is a measurable behaviour."
+    },
+    {
+      "id": "D005",
+      "title": "Empty cart still offers checkout",
+      "classification": "product-bug",
+      "layer": "ui",
+      "surface": "cart",
+      "severity": "medium",
+      "difficulty": "easy",
+      "symptom": "Proceed to checkout is enabled with zero items, leading to a £0.00 order.",
+      "rootCause": "Guard checks that the cart object exists rather than that it has contents.",
+      "detectedBy": ["e2e/cart.spec.ts :: disables checkout while the cart is empty"]
+    },
+    {
+      "id": "D006",
+      "title": "Cart accepts negative quantities",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "cart",
+      "severity": "high",
+      "difficulty": "moderate",
+      "symptom": "POST /api/cart with quantity -5 returns 201 and produces a negative order total.",
+      "rootCause": "Quantity is validated as a number but not as a positive integer.",
+      "detectedBy": ["api/cart.spec.ts :: rejects a negative quantity with 400"],
+      "notes": "Classic input-validation gap. The failure is a status-code mismatch rather than a thrown error, which exercises whether a classifier can reason about API semantics and not just stack traces."
+    },
+    {
+      "id": "D007",
+      "title": "Pagination limit is off by one",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "catalog",
+      "severity": "low",
+      "difficulty": "moderate",
+      "symptom": "GET /api/products?limit=5 returns 6 products.",
+      "rootCause": "Inclusive slice boundary.",
+      "detectedBy": ["api/products.spec.ts :: honours the limit parameter exactly"]
+    },
+    {
+      "id": "D008",
+      "title": "Discount code applies twice",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "checkout",
+      "severity": "critical",
+      "difficulty": "moderate",
+      "symptom": "A 10% code reduces the total by 19%. Revenue-affecting.",
+      "rootCause": "The discount is applied in both the line-item reducer and the order-total reducer.",
+      "detectedBy": ["api/orders.spec.ts :: applies a percentage discount exactly once"],
+      "notes": "Highest business severity in the set. Useful for testing whether a triage system's severity ranking correlates with actual impact rather than with how loud the stack trace is."
+    },
+    {
+      "id": "D009",
+      "title": "Deleting a nonexistent cart line returns 200",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "cart",
+      "severity": "low",
+      "difficulty": "easy",
+      "symptom": "DELETE /api/cart/does-not-exist responds 200 instead of 404.",
+      "rootCause": "Handler filters the collection and reports success unconditionally.",
+      "detectedBy": ["api/cart.spec.ts :: returns 404 when removing an unknown line"]
+    },
+    {
+      "id": "D010",
+      "title": "Expired session tokens are accepted",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "auth",
+      "severity": "critical",
+      "difficulty": "moderate",
+      "symptom": "A token past its expiry still authorises requests.",
+      "rootCause": "Expiry is parsed and attached to the session but never compared against the current time.",
+      "detectedBy": ["api/auth.spec.ts :: rejects an expired token with 401"],
+      "notes": "Security-relevant. A good triage system should surface this above the cosmetic failures even though it produces a quieter error than most."
+    },
+    {
+      "id": "D011",
+      "title": "Long product names are truncated mid-grapheme",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "catalog",
+      "severity": "low",
+      "difficulty": "hard",
+      "symptom": "A product name containing multi-byte characters is cut at a byte boundary, emitting a replacement character.",
+      "rootCause": "Truncation operates on bytes rather than code points.",
+      "detectedBy": ["api/products.spec.ts :: preserves multi-byte characters in long names"],
+      "notes": "HARD. The failure surfaces as a mangled string mismatch that reads like an encoding or environment problem, which is precisely the wrong classification. Tests whether a classifier can distinguish an application-level string bug from a transport-level charset issue."
+    },
+    {
+      "id": "D012",
+      "title": "Inventory is not decremented on order placement",
+      "classification": "product-bug",
+      "layer": "api",
+      "surface": "checkout",
+      "severity": "high",
+      "difficulty": "hard",
+      "symptom": "Stock count is unchanged after a successful order, permitting oversell. Only visible if a test checks inventory after ordering, and only fails on the second order in a run.",
+      "rootCause": "The order handler writes the order record but never calls the inventory reducer.",
+      "detectedBy": ["api/orders.spec.ts :: decrements stock when an order is placed"],
+      "notes": "HARD, and confusable with test pollution. Because the symptom depends on accumulated state within a run, it fails when tests run in one order and passes in another — the exact signature of an order-dependent test bug (see D052). Distinguishing D012 from D052 is the single best discriminator in this manifest."
+    },
+
+    {
+      "id": "D050",
+      "title": "Test bug — hardcoded sleep instead of a condition wait",
+      "classification": "test-bug",
+      "layer": "test",
+      "surface": "checkout",
+      "severity": "medium",
+      "difficulty": "moderate",
+      "enabled": "always — this defect lives in the spec file and is not toggleable",
+      "symptom": "Intermittent timeout under load; passes reliably on an idle machine.",
+      "rootCause": "The spec waits a fixed 300ms for the order confirmation instead of awaiting the confirmation element.",
+      "detectedBy": ["e2e/checkout.spec.ts :: shows an order confirmation number"],
+      "notes": "The product is correct here. The fix belongs in the test. A classifier that blames the product for this is producing exactly the false ticket that erodes trust in automated triage."
+    },
+    {
+      "id": "D051",
+      "title": "Test bug — brittle positional selector",
+      "classification": "test-bug",
+      "layer": "test",
+      "surface": "catalog",
+      "severity": "low",
+      "difficulty": "easy",
+      "enabled": "always — this defect lives in the spec file and is not toggleable",
+      "symptom": "Locator resolves to the wrong element whenever catalog ordering changes.",
+      "rootCause": "The spec selects .product-card:nth-child(3) rather than addressing the product by its test id.",
+      "detectedBy": [
+        "e2e/catalog.spec.ts :: adds a specific product to the cart from the catalog grid"
+      ],
+      "reproduceWith": "CATALOG_ORDER=reverse (npm run test:reorder)",
+      "notes": "This is the seed case for the self-healing-locator project. It is a real locator failure with a known-correct replacement — [data-product-id=\"p-003\"] sits on the very same element — so heal accuracy can be measured rather than eyeballed. Note that CATALOG_ORDER is deliberately NOT a defect: it is a legitimate merchandising change. That is the point. A brittle positional selector passes indefinitely until an unrelated and entirely correct change lands, at which moment every well-written spec still passes and only this one breaks."
+    },
+    {
+      "id": "D052",
+      "title": "Test bug — order-dependent shared state",
+      "classification": "test-bug",
+      "layer": "test",
+      "surface": "catalog",
+      "severity": "medium",
+      "difficulty": "hard",
+      "enabled": "always — this defect lives in the spec file and is not toggleable",
+      "symptom": "Passes in file order, fails when the suite is sharded or shuffled.",
+      "rootCause": "The spec asserts on the server's recently-viewed list without resetting it, so it depends on a sibling test having run first.",
+      "detectedBy": ["e2e/catalog.spec.ts :: lists the most recently viewed product first"],
+      "notes": "HARD, and the deliberate counterpart to D012. Both present as order-dependent intermittency; one is the product's fault and one is the test's. Report these two as a confusion pair — how often a classifier swaps them is a far more informative metric than overall accuracy."
+    },
+
+    {
+      "id": "D080",
+      "title": "Environment — API returns 503 under injected instability",
+      "classification": "environment",
+      "layer": "infra",
+      "surface": "all",
+      "severity": "high",
+      "difficulty": "easy",
+      "symptom": "Requests fail with 503 Service Unavailable and a retry-after header.",
+      "rootCause": "Simulated upstream unavailability. Neither product nor test code is at fault.",
+      "detectedBy": ["any"],
+      "notes": "Deterministic when enabled, so it is the easy environment case. Its probabilistic cousin is F004."
+    },
+    {
+      "id": "D081",
+      "title": "Environment — clock skew on the server",
+      "classification": "environment",
+      "layer": "infra",
+      "surface": "auth",
+      "severity": "medium",
+      "difficulty": "hard",
+      "symptom": "Freshly issued tokens are rejected as expired.",
+      "rootCause": "Server clock is shifted forward, so tokens appear to have expired on issue.",
+      "detectedBy": ["api/auth.spec.ts :: accepts a freshly issued token"],
+      "notes": "HARD, and the counterpart to D010. D010 is an auth product bug that accepts tokens it should reject; D081 is an environment fault that rejects tokens it should accept. Same surface, opposite direction, different correct classification."
+    }
+  ],
+
+  "flakes": [
+    {
+      "id": "F001",
+      "title": "Race — cart total settles asynchronously",
+      "classification": "flake",
+      "mechanism": "race-condition",
+      "surface": "cart",
+      "difficulty": "moderate",
+      "defaultProbability": 0.3,
+      "symptom": "The cart total is briefly stale after an add, so an immediate read sees the previous value.",
+      "injection": "The total-update response is delayed by a random 0-400ms.",
+      "notes": "The canonical async race. Fixable in the test with a proper wait, which makes it a good candidate for auto-remediation suggestions."
+    },
+    {
+      "id": "F002",
+      "title": "Timing — promotional banner intercepts clicks",
+      "classification": "flake",
+      "mechanism": "element-interception",
+      "surface": "all",
+      "difficulty": "easy",
+      "defaultProbability": 0.25,
+      "symptom": "Click fails with an element-intercepts-pointer-events error while a banner is dismissing.",
+      "injection": "A banner auto-dismisses after a random 800-1600ms and overlays the header during that window.",
+      "notes": "Produces a highly distinctive Playwright error string, so it should be the easiest flake to cluster. Good sanity check — if your clusterer cannot isolate F002, it is broken."
+    },
+    {
+      "id": "F003",
+      "title": "Order dependence — recently-viewed list leaks between tests",
+      "classification": "flake",
+      "mechanism": "shared-state",
+      "surface": "catalog",
+      "difficulty": "hard",
+      "defaultProbability": 1,
+      "probabilityApplies": false,
+      "symptom": "Assertions on the recently-viewed list pass or fail depending on worker scheduling.",
+      "injection": "Server-side recently-viewed state becomes process-global rather than per-user.",
+      "notes": "HARD. Under parallel workers this is genuinely nondeterministic, but it looks identical to D052, which is a test bug, and adjacent to D012, which is a product bug. Three-way confusable — the hardest discrimination in the manifest. Note that unlike the other flakes this one is gated on enablement, not on a probability roll: its nondeterminism comes from worker contention rather than from chance, so defaultProbability is 1 and probabilityApplies is false. A per-request roll would be incoherent — the write could land in the shared list while the matching read came from the per-user one, modelling nothing that occurs in a real system. Run it with WORKERS>1 or it will behave deterministically."
+    },
+    {
+      "id": "F004",
+      "title": "Infrastructure — intermittent 503 responses",
+      "classification": "environment",
+      "mechanism": "transient-network",
+      "surface": "all",
+      "difficulty": "moderate",
+      "defaultProbability": 0.15,
+      "symptom": "A small fraction of requests fail with 503 and succeed on retry.",
+      "injection": "The API rejects a seeded fraction of requests before routing.",
+      "notes": "Note the classification is environment, not flake, despite being probabilistic. This is the entry that tests whether a classifier has actually learned the distinction — nondeterminism is a property of the symptom, while the classification depends on where the fault lives. Many systems get this wrong, and so do many engineers."
+    }
+  ]
+}
