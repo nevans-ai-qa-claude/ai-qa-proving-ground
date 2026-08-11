@@ -4,6 +4,10 @@
 with toggleable fault injection and a baseline Playwright suite that emits structured run
 events conforming to a shared contract.
 
+Part of [nevans-ai-qa-claude](https://github.com/nevans-ai-qa-claude) — a series exploring
+how far AI can usefully be pushed into a test automation workflow, and where it should not
+go. This repository is the measuring instrument the rest are scored against.
+
 It is not interesting on its own. It exists so that everything built on top of it can be
 **measured** rather than merely demonstrated.
 
