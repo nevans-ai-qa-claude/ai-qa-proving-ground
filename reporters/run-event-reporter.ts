@@ -55,12 +55,23 @@ function clean(value: string | undefined): string {
 }
 
 /**
- * Reduces an error message to its root-cause shape by replacing everything variable —
- * numbers, ids, timestamps, paths, quoted literals — with placeholders.
+ * Reduces an error message to its root-cause shape by replacing run-varying tokens —
+ * uuids, timestamps, paths, urls, durations — with placeholders.
  *
- * This is the field that makes triage cheap. Two failures with the same cause collapse to
- * the same signature, so you cluster deterministically and only spend model tokens on one
- * representative per cluster rather than on every individual failure.
+ * Two failures with the same cause collapse to the same signature, so you cluster
+ * deterministically and only spend model tokens on one representative per cluster.
+ *
+ * Deliberately NOT normalised: plain numbers and quoted literals.
+ *
+ * An earlier version replaced every number with <num> and every quoted string with <str>.
+ * Measured against a 101-run corpus, that collapsed 491 failures into 13 clusters of which
+ * only 5 were pure — a 7.7% ceiling for signature-only classification — because
+ * "expected 401, got 200" (an auth defect) and "expected 18, got 16.20" (a discount
+ * defect) produced identical keys.
+ *
+ * Asserted values and locator strings are the most discriminating evidence available.
+ * Normalising them away optimises for a small cluster count, which is not the goal. The
+ * goal is clusters whose members share a root cause.
  */
 function signatureOf(message: string): string {
   return clean(message)
@@ -72,10 +83,11 @@ function signatureOf(message: string): string {
     .replace(/(?:[A-Za-z]:)?[\\/][\w.\-\\/]+\.(?:ts|js|tsx|jsx)(?::\d+:\d+)?/g, '<path>')
     .replace(/https?:\/\/[^\s)'"]+/g, '<url>')
     .replace(/\b0x[0-9a-f]+\b/gi, '<hex>')
-    .replace(/"[^"]*"/g, '<str>')
-    .replace(/'[^']*'/g, '<str>')
-    .replace(/\b\d+(?:\.\d+)?(?:ms|s)\b/g, '<duration>')
-    .replace(/\b\d+(?:\.\d+)?\b/g, '<num>')
+    .replace(/\b\d+(?:\.\d+)?\s*ms\b/g, '<duration>')
+    // Server-generated ids: line-0001, order-0002, CN-000001. Vary per run, carry no
+    // diagnostic weight.
+    .replace(/\b(?:line|order)-\d+\b/g, '<id>')
+    .replace(/\bCN-\d+\b/g, '<confirmation>')
     .replace(/\s+/g, ' ')
     .slice(0, 400)
     .trim();

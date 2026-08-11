@@ -242,10 +242,56 @@ to guess.
 npm run corpus
 ```
 
-Executes roughly 60 runs across isolated defects, flake scenarios at several seeds, and
-combinations. Isolated single-defect runs are what make attribution learnable; combinations
-then test whether it holds up under co-occurrence. A corpus of nothing but chaos runs
-teaches very little, because every failure co-occurs with every other.
+90 runs across isolated defects, flake scenarios at several seeds, test-bug isolation runs,
+worker-contention runs and combinations. Isolated single-defect runs are what make
+attribution learnable; combinations then test whether it holds up under co-occurrence. A
+corpus of nothing but chaos runs teaches very little, because every failure co-occurs with
+every other.
+
+### Measured composition
+
+90 runs, 2,498 results, 376 non-pass labelled, 17 unlabelled, 90/90 schema-valid.
+
+| Class | Count | Share of non-pass |
+|---|---|---|
+| environment | 145 | 38.6% |
+| flake | 130 | 34.6% |
+| product-bug | 91 | 24.2% |
+| test-bug | 10 | 2.7% |
+
+**`test-bug` is structurally underrepresented, and more runs will not fix it.** There are
+only three test bugs in the manifest, and D050 (the hardcoded sleep) needs real load to
+fire. Repeats would add count without adding diversity. The fix is more *distinct* badly
+written tests — a duplicated assertion, a test that asserts on a locale-formatted date, one
+that depends on a fixture it never requested — not more executions of the same three.
+
+Treat 2.7% as a known limitation when reporting any per-class metric, and weight accordingly.
+
+### The ceiling on evidence-only classification
+
+Measured across the corpus: how much can deterministic clustering achieve before any model
+call, and how pure are the resulting clusters?
+
+| Cluster key | Clusters | Pure | Ceiling |
+|---|---|---|---|
+| signature only | 31 | 12 | 9.3% |
+| testId + signature | 51 | 20 | 20.2% |
+| testId + expected/actual | 66 | 37 | 34.3% |
+
+**Even the best key tops out at ~34%.** This is not a normalisation bug. The same test
+failing with byte-identical evidence is a product bug in one run and a flake in another,
+and from a single failure those are genuinely indistinguishable.
+
+The discriminator is **cross-run frequency**, which lives in the corpus rather than in any
+individual result. A test failing 3% of the time is a flake; the same test failing on every
+run since a given commit is a product bug. Any classifier built on this contract should
+consume run *history*, not one failure at a time — that feature will move the number far
+more than better prompting will.
+
+For reference, the archived v1 corpus scored 41.7% on the best key. v2 scores lower because
+it is harder, not because it regressed: v1 was 14.7% flake mass against v2's 34.6%, and
+flakes are the class that collides with product bugs. A corpus that flattered a classifier
+would be the failure mode, not the goal.
 
 ---
 
