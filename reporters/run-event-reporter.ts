@@ -24,7 +24,15 @@ import type {
 
 import manifest from '../contracts/defects.json';
 
-const SCHEMA_VERSION = '1.0.0';
+/**
+ * Contract version emitted with every run.
+ *
+ * 1.1.0 relaxed `error.signature` normalisation. The JSON Schema is byte-identical to
+ * 1.0.0 — the shape did not move — but every downstream clustering result changes, so it
+ * is a version bump. Version the observable behaviour of the data, not the file that
+ * describes its shape.
+ */
+const SCHEMA_VERSION = '1.1.0';
 
 type ManifestEntry = { id: string; classification: string; layer?: string };
 const MANIFEST = manifest as unknown as {
