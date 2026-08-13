@@ -76,6 +76,26 @@
       }
     },
 
+    "episode": {
+      "description": "Groups a run into an ordered sequence sharing a code state — the analogue of a commit, a deployment, or a nightly window. Optional and added in 1.2.0. Its purpose is to make cross-run rates computable over a comparable window: a defect that lands and persists fails on nearly every run of its episode, while a flake fires intermittently across all of them. Without a window, both look like low global failure rates and are indistinguishable. Real-world producers can populate this from the git sha or the deployment id.",
+      "type": "object",
+      "required": ["id", "index", "length"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "index": {
+          "description": "Zero-based position of this run within its episode.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "length": {
+          "description": "Total number of runs in the episode.",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+
     "injection": {
       "description": "Which faults were deliberately enabled for this run. This is what makes a run self-describing: months later you can reconstruct exactly what was wrong with the system under test. Real-world producers emit empty arrays here.",
       "type": "object",

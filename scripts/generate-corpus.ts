@@ -1,188 +1,195 @@
 /**
  * Generates a labelled corpus of run events.
  *
- * This is the actual deliverable of Project 0. The application and the test suite exist
- * to produce this: a few hundred runs across known fault configurations, each carrying
- * the correct answer, against which a triage classifier can be scored.
+ * This is the actual deliverable of Project 0. The application and the test suite exist to
+ * produce it: a few hundred runs across known fault configurations, each carrying the
+ * correct answer, against which a triage classifier can be scored.
  *
  * Scenario design matters more than volume. A corpus of five hundred identical chaos runs
- * teaches a classifier almost nothing, because every failure co-occurs with every other
- * and it cannot learn which evidence attaches to which cause. Isolated single-defect runs
- * are what make attribution learnable; combinations then test whether it holds up when
- * several causes are present at once.
+ * teaches a classifier almost nothing, because every failure co-occurs with every other and
+ * nothing can be attributed. Isolated single-defect runs make attribution learnable;
+ * combinations then test whether it survives co-occurrence.
+ *
+ * Structured as a flat list of run specifications rather than scenario-times-repeats,
+ * because episodes need the configuration to change from one run to the next within a
+ * single logical group.
  */
 
 import { spawnSync } from 'node:child_process';
 import manifest from '../contracts/defects.json';
 
-type Scenario = {
-  name: string;
-  defects: string;
-  flakes: string;
-  seed: number;
-  repeats: number;
-  extraEnv?: Record<string, string>;
-  /** Extra Playwright CLI arguments, e.g. `--grep` for isolation runs. */
-  args?: string;
+type RunSpec = {
+  group: string;
+  env: Record<string, string>;
 };
 
 const M = manifest as unknown as {
   defects: Array<{ id: string; layer: string }>;
-  flakes: Array<{ id: string }>;
+  flakes: Array<{ id: string; defaultProbability: number }>;
 };
 
 const injectableDefects = M.defects.filter((d) => d.layer !== 'test').map((d) => d.id);
 
-function buildScenarios(): Scenario[] {
-  const scenarios: Scenario[] = [
-    // Baseline. Everything here should be green apart from the always-on test bugs, and
-    // if it is not, the proving ground itself is broken and nothing downstream is
-    // trustworthy. Run it first and run it often.
-    { name: 'clean', defects: 'none', flakes: 'none', seed: 1337, repeats: 3 },
-  ];
+function spec(group: string, env: Record<string, string>): RunSpec {
+  return {
+    group,
+    env: {
+      DEFECTS: 'none',
+      FLAKES: 'none',
+      FLAKE_SEED: '1337',
+      CATALOG_ORDER: 'default',
+      WORKERS: '1',
+      RUN_TRIGGER: 'scheduled',
+      ...env,
+    },
+  };
+}
 
-  // One defect at a time. The backbone of the corpus: unambiguous attribution, because
-  // exactly one thing is wrong.
-  //
-  // D080 is capped at a single repeat. It rejects every request, so one run labels all 29
-  // results `environment` with near-identical cascade evidence. In corpus v1 it alone
-  // produced 160 of the 236 environment labels — a third of the entire non-pass corpus,
-  // from the least informative scenario in the set. Volume is not the same as signal.
-  for (const id of injectableDefects) {
-    scenarios.push({
-      name: `solo-${id}`,
-      defects: id,
-      flakes: 'none',
-      seed: 1337,
-      repeats: id === 'D080' ? 1 : 2,
-    });
+function buildRuns(): RunSpec[] {
+  const runs: RunSpec[] = [];
+
+  // Baseline. Should be entirely green; if not, the instrument is broken and nothing
+  // downstream is trustworthy.
+  for (let i = 0; i < 3; i += 1) {
+    runs.push(spec('clean', { FLAKE_SEED: String(1337 + i) }));
   }
 
-  // Flakes in isolation, across several seeds so the nondeterminism is actually exercised
-  // rather than frozen at one arbitrary sequence.
+  // One defect at a time — the backbone. Unambiguous attribution, because exactly one
+  // thing is wrong.
   //
-  // F004 gets extra repeats: it is the probabilistic environment case, the one that tests
-  // whether a classifier has learned that nondeterminism is a property of the *symptom*
-  // while classification depends on where the fault lives. In v1 it produced only 12
-  // labels against D080's 160, which is precisely backwards.
+  // D080 is capped at one run: it rejects every request, so a single run labels all 29
+  // results `environment` with near-identical cascade evidence. It once produced a third
+  // of the entire non-pass corpus from the least informative scenario in the set.
+  for (const id of injectableDefects) {
+    const repeats = id === 'D080' ? 1 : 2;
+    for (let i = 0; i < repeats; i += 1) {
+      runs.push(spec(`solo-${id}`, { DEFECTS: id, FLAKE_SEED: String(1337 + i) }));
+    }
+  }
+
+  // Flakes in isolation across several seeds, so the nondeterminism is genuinely exercised
+  // rather than frozen at one arbitrary sequence. F004 gets extra weight: it is the
+  // probabilistic environment case, which is what tests whether a classifier has learned
+  // that nondeterminism is a property of the symptom while classification depends on where
+  // the fault lives.
   for (const flake of M.flakes) {
+    const repeats = flake.id === 'F004' ? 3 : 2;
     for (const seed of [11, 22, 33]) {
-      scenarios.push({
-        name: `flake-${flake.id}-s${seed}`,
-        defects: 'none',
-        flakes: flake.id,
-        seed,
-        repeats: flake.id === 'F004' ? 4 : 2,
-      });
+      for (let i = 0; i < repeats; i += 1) {
+        runs.push(
+          spec(`flake-${flake.id}`, { FLAKES: flake.id, FLAKE_SEED: String(seed + i) })
+        );
+      }
+    }
+  }
+
+  // Test bugs. D052 fires only when its sibling has not run first, which `--grep` produces
+  // exactly. D051 needs a legitimate catalog re-sort.
+  for (let i = 0; i < 4; i += 1) {
+    runs.push(
+      spec('isolate-D052', { FLAKE_SEED: String(1337 + i), GREP: 'most recently viewed' })
+    );
+  }
+  for (let i = 0; i < 6; i += 1) {
+    runs.push(spec('reorder-D051', { CATALOG_ORDER: 'reverse', FLAKE_SEED: String(1337 + i) }));
+  }
+
+  // Worker contention — the only configuration where F003 and D052 are genuinely
+  // nondeterministic rather than merely enabled.
+  for (const seed of [61, 62, 63]) {
+    for (let i = 0; i < 2; i += 1) {
+      runs.push(
+        spec('parallel-F003', { FLAKES: 'F003', WORKERS: '4', FLAKE_SEED: String(seed + i) })
+      );
     }
   }
 
   /*
-   * Test-bug scenarios.
+   * Episodes.
    *
-   * v1 produced 8 test-bug labels out of 491 non-pass results — 1.6%, and D052 produced
-   * none at all, because the corpus never ran a test in isolation or changed catalog
-   * order often enough. That left the D012-vs-D052 confusion pair, the sharpest
-   * discrimination task in the manifest, with nothing on one side of it.
+   * The reason this exists: cross-run failure rate is meaningless without a comparable
+   * window. Measured on the previous corpus, the rate feature contributed nothing at all,
+   * and the reason was corpus design rather than a bad hypothesis. A defect injected into
+   * 2 of 90 scattered runs has a ~2% global failure rate — numerically indistinguishable
+   * from a flake — even though it is deterministic and always fires when enabled.
    *
-   * These scenarios exist to fix that. They are cheap: an isolation run executes a single
-   * test.
+   * Real defects do not behave that way. A bug lands at a commit and then fails every run
+   * until someone fixes it. An episode models that: a few clean runs, then the defect
+   * switched on and held on, with low-probability flakes throughout so the same window
+   * contains both a persistent fault and intermittent noise.
+   *
+   * Within an episode the affected test fails ~70% of runs while flaky tests fire ~20%.
+   * That is a separation a rate feature can actually act on.
    */
+  const EPISODE_LENGTH = 10;
+  const CLEAN_PREFIX = 3;
+  const EPISODE_DEFECTS = ['D001', 'D008', 'D012'];
 
-  // D052 fires when its sibling has not run first. `--grep` gives exactly that condition:
-  // the spec asserts on recently-viewed state that nothing established.
-  for (const seed of [1337, 1338, 1339, 1340]) {
-    scenarios.push({
-      name: 'isolate-D052',
-      defects: 'none',
-      flakes: 'none',
-      seed,
-      repeats: 1,
-      args: '--grep "most recently viewed"',
-    });
-  }
-
-  // D051 under a legitimate catalog re-sort. Raised from 2 repeats to 6.
-  scenarios.push({
-    name: 'reorder-D051',
-    defects: 'none',
-    flakes: 'none',
-    seed: 1337,
-    repeats: 6,
-    extraEnv: { CATALOG_ORDER: 'reverse' },
-  });
-
-  // Worker contention. The only configuration in which F003 and D052 are genuinely
-  // nondeterministic rather than merely enabled — the global reset hook and the shared
-  // recently-viewed list contend across workers.
-  for (const seed of [61, 62, 63]) {
-    scenarios.push({
-      name: 'parallel-F003',
-      defects: 'none',
-      flakes: 'F003',
-      seed,
-      repeats: 2,
-      extraEnv: { WORKERS: '4' },
-    });
-  }
-
-  // Combinations. Tests whether attribution survives co-occurrence.
-  scenarios.push(
-    { name: 'pair-D004-D008', defects: 'D004,D008', flakes: 'none', seed: 1337, repeats: 2 },
-    { name: 'confusion-D012', defects: 'D012', flakes: 'F003', seed: 44, repeats: 3 },
-    { name: 'confusion-D002', defects: 'D002', flakes: 'F001', seed: 55, repeats: 3 },
-    { name: 'auth-pair', defects: 'D010,D081', flakes: 'none', seed: 1337, repeats: 2 },
-    { name: 'infra', defects: 'D080', flakes: 'none', seed: 1337, repeats: 1 },
-    { name: 'chaos', defects: 'all', flakes: 'all', seed: 99, repeats: 3 }
-  );
-
-  return scenarios;
-}
-
-function main() {
-  const scenarios = buildScenarios();
-  const totalRuns = scenarios.reduce((sum, s) => sum + s.repeats, 0);
-
-  console.log(`\n  ${scenarios.length} scenarios, ${totalRuns} runs total.\n`);
-
-  let completed = 0;
-
-  for (const scenario of scenarios) {
-    for (let i = 0; i < scenario.repeats; i += 1) {
-      completed += 1;
-      process.stdout.write(
-        `  [${String(completed).padStart(3)}/${totalRuns}] ${scenario.name} … `
+  for (const defect of EPISODE_DEFECTS) {
+    const episodeId = `ep-${defect.toLowerCase()}`;
+    for (let index = 0; index < EPISODE_LENGTH; index += 1) {
+      const landed = index >= CLEAN_PREFIX;
+      runs.push(
+        spec(`episode-${defect}`, {
+          // Before the "commit", nothing is wrong. After it, the defect persists.
+          DEFECTS: landed ? defect : 'none',
+          // Flakes run at low probability throughout, in both halves, so the window
+          // contains intermittent noise the rate feature has to distinguish from the
+          // persistent fault.
+          FLAKES: 'F001:0.2,F002:0.2',
+          FLAKE_SEED: String(700 + index),
+          EPISODE_ID: episodeId,
+          EPISODE_INDEX: String(index),
+          EPISODE_LENGTH: String(EPISODE_LENGTH),
+        })
       );
-
-      // Single command string — see the DEP0190 note in verify-manifest.ts.
-      const command = scenario.args
-        ? `npx playwright test ${scenario.args}`
-        : 'npx playwright test';
-
-      const result = spawnSync(command, {
-        stdio: 'ignore',
-        shell: true,
-        env: {
-          ...process.env,
-          DEFECTS: scenario.defects,
-          FLAKES: scenario.flakes,
-          // Vary the seed per repeat so repeats are not carbon copies of one another.
-          FLAKE_SEED: String(scenario.seed + i),
-          RUN_TRIGGER: 'scheduled',
-          CATALOG_ORDER: 'default',
-          WORKERS: '1',
-          ...scenario.extraEnv,
-        },
-      });
-
-      // A non-zero exit code is the expected outcome for most scenarios — the suite is
-      // supposed to fail when defects are injected. What matters is that a run event was
-      // written, which the validator checks separately.
-      console.log(result.status === 0 ? 'green' : `red (exit ${result.status})`);
     }
   }
 
-  console.log(`\n  Corpus written to artifacts/runs. Validate it with: npm run validate:events\n`);
+  // Combinations. Does attribution survive co-occurrence?
+  const combos: Array<[string, Record<string, string>]> = [
+    ['pair-D004-D008', { DEFECTS: 'D004,D008' }],
+    ['confusion-D012', { DEFECTS: 'D012', FLAKES: 'F003', FLAKE_SEED: '44' }],
+    ['confusion-D002', { DEFECTS: 'D002', FLAKES: 'F001', FLAKE_SEED: '55' }],
+    ['auth-pair', { DEFECTS: 'D010,D081' }],
+    ['chaos', { DEFECTS: 'all', FLAKES: 'all', FLAKE_SEED: '99' }],
+  ];
+  for (const [name, env] of combos) {
+    const repeats = name === 'chaos' ? 3 : 2;
+    for (let i = 0; i < repeats; i += 1) {
+      runs.push(spec(name, { ...env, FLAKE_SEED: String(Number(env.FLAKE_SEED ?? 1337) + i) }));
+    }
+  }
+
+  return runs;
+}
+
+function main() {
+  const runs = buildRuns();
+  const groups = new Set(runs.map((r) => r.group));
+
+  console.log(`\n  ${runs.length} runs across ${groups.size} groups.\n`);
+
+  runs.forEach((run, i) => {
+    const { GREP, ...env } = run.env;
+    // Single command string — Node 24 deprecates shell:true combined with an args array.
+    const command = GREP ? `npx playwright test --grep "${GREP}"` : 'npx playwright test';
+
+    process.stdout.write(`  [${String(i + 1).padStart(3)}/${runs.length}] ${run.group} … `);
+
+    const result = spawnSync(command, {
+      stdio: 'ignore',
+      shell: true,
+      env: { ...process.env, ...env },
+    });
+
+    // A non-zero exit is the expected outcome for most of these — the suite is supposed to
+    // fail when defects are injected. What matters is that a run event was written, which
+    // the validator checks separately.
+    console.log(result.status === 0 ? 'green' : `red (${result.status})`);
+  });
+
+  console.log(`\n  Corpus written to artifacts/runs. Validate: npm run validate:events\n`);
 }
 
 main();

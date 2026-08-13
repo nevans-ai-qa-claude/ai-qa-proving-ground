@@ -31,8 +31,11 @@ import manifest from '../contracts/defects.json';
  * 1.0.0 — the shape did not move — but every downstream clustering result changes, so it
  * is a version bump. Version the observable behaviour of the data, not the file that
  * describes its shape.
+ *
+ * 1.2.0 added the optional `episode` block. A new optional field is a textbook minor:
+ * consumers written against 1.1.0 ignore what they do not recognise and keep working.
  */
-const SCHEMA_VERSION = '1.1.0';
+const SCHEMA_VERSION = '1.2.0';
 
 type ManifestEntry = { id: string; classification: string; layer?: string };
 const MANIFEST = manifest as unknown as {
@@ -133,6 +136,27 @@ function extractExpectedActual(message: string): { expected?: string; actual?: s
   return { expected: expected?.trim(), actual: actual?.trim() };
 }
 
+/**
+ * Groups this run into an ordered sequence sharing a code state.
+ *
+ * Exists because cross-run failure rate is meaningless without a comparable window. A
+ * defect injected in 2 of 90 scattered runs has a 2% global failure rate — numerically
+ * identical to a flake — even though within its own episode it fails every time. Real
+ * systems get this window for free from the git sha or deployment id; here it comes from
+ * the corpus generator.
+ */
+function episodeFromEnv() {
+  const id = process.env.EPISODE_ID;
+  if (!id) return undefined;
+
+  const index = Number(process.env.EPISODE_INDEX ?? 0);
+  const length = Number(process.env.EPISODE_LENGTH ?? 1);
+  if (!Number.isInteger(index) || !Number.isInteger(length) || length < 1 || index < 0) {
+    return undefined;
+  }
+  return { id, index, length };
+}
+
 function gitInfo() {
   const run = (cmd: string) => execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
   try {
@@ -228,6 +252,7 @@ export default class RunEventReporter implements Reporter {
       durationMs: finishedAt.getTime() - this.startedAt.getTime(),
       trigger: process.env.CI ? 'ci' : ((process.env.RUN_TRIGGER as string) ?? 'local'),
       git: gitInfo(),
+      episode: episodeFromEnv(),
       environment: {
         os: `${os.platform()}-${os.release()}`,
         nodeVersion: process.version,

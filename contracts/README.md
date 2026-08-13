@@ -76,6 +76,7 @@ tracking `main`.
 |---|---|---|
 | `contract-v1.0.0` | 1.0.0 | Initial schema and answer key. |
 | `contract-v1.1.0` | 1.1.0 | `error.signature` normalisation relaxed — plain numbers and quoted literals are preserved. Same shape, different clustering behaviour. |
+| `contract-v1.2.0` | 1.2.0 | Optional `episode` block groups runs into windows sharing a code state. Purely additive; 1.1.0 consumers ignore it. |
 
 ## `defects.json`
 
