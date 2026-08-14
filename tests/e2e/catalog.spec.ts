@@ -55,6 +55,17 @@ test.describe('catalog', () => {
   );
 
   test(
+    'renders the full catalog',
+    { annotation: targets('D054') },
+    async ({ authedPage }) => {
+      // D054 — TEST BUG. Pins the exact seed-fixture count instead of asserting what the
+      // test actually cares about. Breaks the first time merchandising adds a product —
+      // the most ordinary change a storefront undergoes.
+      await expect(authedPage.getByTestId('product-card')).toHaveCount(6);
+    }
+  );
+
+  test(
     'views a product from the catalog',
     { tag: '@shared-state' },
     async ({ authedPage }) => {

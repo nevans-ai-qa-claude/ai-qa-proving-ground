@@ -228,6 +228,36 @@
     },
 
     {
+      "id": "D053",
+      "title": "Test bug — hard-coded currency string instead of a value assertion",
+      "classification": "test-bug",
+      "layer": "test",
+      "surface": "cart",
+      "severity": "low",
+      "difficulty": "moderate",
+      "enabled": "always — this defect lives in the spec file and is not toggleable",
+      "reproduceWith": "LOCALE=de-DE (npm run test:locale)",
+      "symptom": "Assertion on the literal string \"$20.00\" fails the moment the storefront renders prices for a second locale.",
+      "rootCause": "The spec asserts on a formatted presentation string rather than on the underlying numeric value or a locale-agnostic data attribute.",
+      "detectedBy": ["e2e/cart.spec.ts :: shows the cart subtotal in the header"],
+      "notes": "The i18n rollout is correct product work, not a defect — which is what makes the failure attributable to the test. Distinct in shape from D051: that one addresses the wrong element, this one asserts on the right element's presentation layer."
+    },
+    {
+      "id": "D054",
+      "title": "Test bug — hard-coded catalog fixture count",
+      "classification": "test-bug",
+      "layer": "test",
+      "surface": "catalog",
+      "severity": "low",
+      "difficulty": "easy",
+      "enabled": "always — this defect lives in the spec file and is not toggleable",
+      "reproduceWith": "CATALOG_EXTRA=1 (npm run test:extra)",
+      "symptom": "toHaveCount(6) fails as soon as the catalog gains a seventh product.",
+      "rootCause": "The spec pins the exact number of seed products instead of asserting the property it actually cares about.",
+      "detectedBy": ["e2e/catalog.spec.ts :: renders the full catalog"],
+      "notes": "The most common brittle-test shape in real suites, and the easiest to classify — a count assertion breaking when a catalog grows is unambiguous once you know the catalog grew. Included as the easy end of the test-bug range, so accuracy on that class is not measured solely on hard cases."
+    },
+    {
       "id": "D080",
       "title": "Environment — API returns 503 under injected instability",
       "classification": "environment",

@@ -26,6 +26,24 @@ test.describe('cart', () => {
     }
   );
 
+  test(
+    'shows the cart subtotal in the header',
+    { annotation: targets('D053') },
+    async ({ authedPage }) => {
+      await authedPage.locator('[data-product-id="p-001"] [data-testid="add-to-cart"]').click();
+      await authedPage.getByTestId('nav-cart').click();
+
+      // D053 — TEST BUG. Asserts on the rendered presentation string rather than the
+      // value behind it. Correct today, wrong the moment the storefront ships in a second
+      // locale where the same amount renders as "20,00 €".
+      //
+      // The locale rollout is correct product work, which is what makes this the test's
+      // fault. A locale-agnostic version would assert on a numeric data attribute, or via
+      // the API.
+      await expect(authedPage.getByTestId('cart-subtotal')).toHaveText('$20.00');
+    }
+  );
+
   // Annotated for D003 as well as its own purpose. Its subtotal assertions are
   // cent-sensitive, so it genuinely detects the price-formatting defect as collateral.
   // Declaring that is more accurate than leaving the failure unlabelled — real suites

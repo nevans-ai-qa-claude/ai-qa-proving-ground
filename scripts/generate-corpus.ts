@@ -38,6 +38,8 @@ function spec(group: string, env: Record<string, string>): RunSpec {
       FLAKES: 'none',
       FLAKE_SEED: '1337',
       CATALOG_ORDER: 'default',
+      CATALOG_EXTRA: '0',
+      LOCALE: 'en-US',
       WORKERS: '1',
       RUN_TRIGGER: 'scheduled',
       ...env,
@@ -92,6 +94,24 @@ function buildRuns(): RunSpec[] {
   }
   for (let i = 0; i < 6; i += 1) {
     runs.push(spec('reorder-D051', { CATALOG_ORDER: 'reverse', FLAKE_SEED: String(1337 + i) }));
+  }
+
+  /*
+   * D053 and D054 exist because the previous corpus had three test bugs producing ten
+   * labels — 2.7% of failures — and an eval split that landed only three of them. A
+   * classifier comparison dominated by a three-example class cannot answer whether the
+   * model helps: the first hybrid run swung macro F1 by 15 points on that class alone.
+   *
+   * Both fire under legitimate product configuration, never under defect or flake
+   * injection. That is required, not incidental: the reporter's label precedence puts
+   * flake attribution above always-on test bugs, so a test bug that only fired under
+   * FLAKES would be labelled `flake` and make the corpus worse rather than better.
+   */
+  for (let i = 0; i < 6; i += 1) {
+    runs.push(spec('locale-D053', { LOCALE: 'de-DE', FLAKE_SEED: String(1337 + i) }));
+  }
+  for (let i = 0; i < 6; i += 1) {
+    runs.push(spec('extra-D054', { CATALOG_EXTRA: '1', FLAKE_SEED: String(1337 + i) }));
   }
 
   // Worker contention — the only configuration where F003 and D052 are genuinely

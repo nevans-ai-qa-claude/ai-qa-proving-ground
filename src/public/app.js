@@ -38,6 +38,16 @@ function money(value) {
   // by how loud the failure is.
   if (defectOn('D003')) return `$${n}`;
 
+  // Locale-aware currency formatting. Correct product behaviour — a store shipping in a
+  // second locale formats its prices for that locale. Under LOCALE=de-DE this renders
+  // "20,00 €" rather than "$20.00", which is exactly what fires D053: a spec that
+  // hard-codes the dollar string instead of asserting on the value behind it.
+  const locale = app.faults.locale || 'en-US';
+  const currency = app.faults.currency || 'USD';
+  if (locale !== 'en-US') {
+    return new Intl.NumberFormat(locale, { style: 'currency', currency }).format(n);
+  }
+
   return `$${n.toFixed(2)}`;
 }
 

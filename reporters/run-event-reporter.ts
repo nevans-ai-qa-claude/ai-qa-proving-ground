@@ -312,7 +312,11 @@ export default class RunEventReporter implements Reporter {
       titlePath: test.titlePath().filter(Boolean).slice(1, -1),
       file: relativeFile,
       line: test.location.line,
-      suite: relativeFile.includes('/api/') ? ('api' as const) : ('e2e' as const),
+      // Match on a path *segment*, not a substring. The previous check looked for
+      // '/api/' with a leading slash, but these paths are root-relative — 'api/x.spec.ts'
+      // has no leading slash, so every API test was silently labelled e2e. Nothing keyed
+      // on the field, so the suite passed and the corpus was quietly wrong.
+      suite: relativeFile.split('/').includes('api') ? ('api' as const) : ('e2e' as const),
       tags: test.tags,
       status,
       expectedStatus: test.expectedStatus === 'failed' ? ('failed' as const) : ('passed' as const),

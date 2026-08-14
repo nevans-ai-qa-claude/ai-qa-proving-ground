@@ -76,6 +76,8 @@ export default defineConfig({
       FLAKES: process.env.FLAKES ?? 'none',
       FLAKE_SEED: process.env.FLAKE_SEED ?? '1337',
       CATALOG_ORDER: process.env.CATALOG_ORDER ?? 'default',
+      CATALOG_EXTRA: process.env.CATALOG_EXTRA ?? '0',
+      LOCALE: process.env.LOCALE ?? 'en-US',
       PORT: String(PORT),
     },
   },

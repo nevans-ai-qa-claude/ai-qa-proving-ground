@@ -168,6 +168,26 @@ router.get('/products', (req: Request, res: Response) => {
   let results =
     process.env.CATALOG_ORDER === 'reverse' ? [...state.products].reverse() : state.products;
 
+  /**
+   * CATALOG_EXTRA is NOT a defect either. Merchandising teams add seasonal products
+   * constantly — a catalog gaining an item is the most ordinary change a store undergoes.
+   * It exists to fire D054, a spec that hard-codes the fixture count, while every
+   * well-written spec keeps passing.
+   */
+  if (process.env.CATALOG_EXTRA === '1') {
+    results = [
+      ...results,
+      {
+        id: 'p-007',
+        name: 'Seasonal Desk Mat',
+        price: 29.5,
+        stock: 40,
+        category: 'accessories',
+        description: 'Limited run, felt surface.',
+      },
+    ];
+  }
+
   if (search) {
     // D004 — product bug. Case is normalised on neither side, so 'laptop' finds nothing
     // while 'Laptop' finds one. Detected by both an API spec and a UI spec: two distinct
@@ -413,5 +433,10 @@ router.get('/_meta/ui-faults', (_req: Request, res: Response) => {
     defects: injectionState().defects,
     f002Fires: flakeFires('F002'),
     f002DismissMs: jitter(800, 1600),
+    // Legitimate i18n configuration, not a defect. Shipping a store in a second locale is
+    // ordinary product work. It fires D053, a spec that hard-codes a dollar-formatted
+    // string instead of asserting on the underlying value.
+    locale: process.env.LOCALE || 'en-US',
+    currency: process.env.LOCALE === 'de-DE' ? 'EUR' : 'USD',
   });
 });
