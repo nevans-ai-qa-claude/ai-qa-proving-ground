@@ -55,6 +55,55 @@ test.describe('catalog', () => {
   );
 
   test(
+    'adds a product using its button label',
+    { annotation: targets('D055') },
+    async ({ authedPage }) => {
+      // D055 — TEST BUG, text-dependent locator. Addresses the control by the copy printed
+      // on it, so a marketing rewrite breaks it. The known-good replacement,
+      // [data-testid="add-to-cart"], sits on the very same element.
+      await authedPage
+        .locator('[data-product-id="p-002"]')
+        .getByRole('button', { name: 'Add to cart' })
+        .click();
+
+      await expect(authedPage.getByTestId('cart-badge')).toHaveText('1');
+    }
+  );
+
+  test(
+    'adds a product through the grid structure',
+    { annotation: targets('D056') },
+    async ({ authedPage }) => {
+      // D056 — TEST BUG, over-specific ancestor chain. Encodes the exact nesting between
+      // the grid and the button, so inserting a wrapper element breaks it even though
+      // every element it names still exists. The healed form addresses the button by
+      // identity and ignores the shape of the tree above it.
+      await authedPage
+        .locator('#catalog-grid > article.product-card:nth-of-type(1) > button')
+        .click();
+
+      await expect(authedPage.getByTestId('cart-line-name')).toHaveCount(0);
+      await expect(authedPage.getByTestId('cart-badge')).toHaveText('1');
+    }
+  );
+
+  test(
+    'adds the last product in the grid',
+    { annotation: targets('D057') },
+    async ({ authedPage }) => {
+      // D057 — TEST BUG, index-based match on a shared class. "The sixth button" is only
+      // the intended product while the catalog has exactly six products; it silently
+      // becomes a different product the moment merchandising adds one. Distinct from D051:
+      // that one is wrong about *position within a reordering*, this one is wrong about
+      // *cardinality*.
+      await authedPage.locator('[data-testid="add-to-cart"]').nth(5).click();
+
+      await authedPage.getByTestId('nav-cart').click();
+      await expect(authedPage.getByTestId('cart-line-name')).toHaveText(/Cushion/);
+    }
+  );
+
+  test(
     'renders the full catalog',
     { annotation: targets('D054') },
     async ({ authedPage }) => {

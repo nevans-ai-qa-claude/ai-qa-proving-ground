@@ -40,6 +40,8 @@ function spec(group: string, env: Record<string, string>): RunSpec {
       CATALOG_ORDER: 'default',
       CATALOG_EXTRA: '0',
       LOCALE: 'en-US',
+      BUTTON_COPY: 'us',
+      WRAP_CARDS: '0',
       WORKERS: '1',
       RUN_TRIGGER: 'scheduled',
       ...env,
@@ -111,7 +113,26 @@ function buildRuns(): RunSpec[] {
     runs.push(spec('locale-D053', { LOCALE: 'de-DE', FLAKE_SEED: String(1337 + i) }));
   }
   for (let i = 0; i < 6; i += 1) {
-    runs.push(spec('extra-D054', { CATALOG_EXTRA: '1', FLAKE_SEED: String(1337 + i) }));
+    runs.push(spec('extra-D054-D057', { CATALOG_EXTRA: '1', FLAKE_SEED: String(1337 + i) }));
+  }
+
+  /*
+   * Brittle-selector scenarios for the locator-healing project.
+   *
+   * D051 was the only healable case, and one example measures nothing — the same trap that
+   * made the first triage comparison meaningless. Four distinct shapes now: positional
+   * under reordering (D051), text-dependent (D055), over-specific ancestor chain (D056),
+   * and index-based on cardinality (D057).
+   *
+   * Every lever is legitimate product work — a copy change, a layout refactor, a new
+   * product. That is required: if the trigger were a defect, the correct classification
+   * would be `product-bug` and the case would not be healable at all.
+   */
+  for (let i = 0; i < 6; i += 1) {
+    runs.push(spec('copy-D055', { BUTTON_COPY: 'uk', FLAKE_SEED: String(1337 + i) }));
+  }
+  for (let i = 0; i < 6; i += 1) {
+    runs.push(spec('wrap-D056', { WRAP_CARDS: '1', FLAKE_SEED: String(1337 + i) }));
   }
 
   // Worker contention — the only configuration where F003 and D052 are genuinely

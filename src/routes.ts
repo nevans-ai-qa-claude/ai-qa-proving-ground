@@ -175,8 +175,11 @@ router.get('/products', (req: Request, res: Response) => {
    * well-written spec keeps passing.
    */
   if (process.env.CATALOG_EXTRA === '1') {
+    // Prepended, not appended — "new arrivals first" is the ordinary merchandising choice,
+    // and it is what makes this lever meaningful. Appending left every existing index
+    // pointing at the same product, so D057 (an index-based locator) silently kept
+    // passing and the bug was untestable.
     results = [
-      ...results,
       {
         id: 'p-007',
         name: 'Seasonal Desk Mat',
@@ -185,6 +188,7 @@ router.get('/products', (req: Request, res: Response) => {
         category: 'accessories',
         description: 'Limited run, felt surface.',
       },
+      ...results,
     ];
   }
 
@@ -438,5 +442,11 @@ router.get('/_meta/ui-faults', (_req: Request, res: Response) => {
     // string instead of asserting on the underlying value.
     locale: process.env.LOCALE || 'en-US',
     currency: process.env.LOCALE === 'de-DE' ? 'EUR' : 'USD',
+    // Two more legitimate product levers, both feeding brittle-selector test bugs.
+    // BUTTON_COPY is a copy change; WRAP_CARDS is a layout refactor. Neither is a defect,
+    // and that is the point — a healable locator failure has to be caused by correct
+    // product work, or the correct classification would be `product-bug`.
+    buttonCopy: process.env.BUTTON_COPY === 'uk' ? 'Add to basket' : 'Add to cart',
+    wrapCards: process.env.WRAP_CARDS === '1',
   });
 });

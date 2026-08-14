@@ -78,6 +78,8 @@ export default defineConfig({
       CATALOG_ORDER: process.env.CATALOG_ORDER ?? 'default',
       CATALOG_EXTRA: process.env.CATALOG_EXTRA ?? '0',
       LOCALE: process.env.LOCALE ?? 'en-US',
+      BUTTON_COPY: process.env.BUTTON_COPY ?? 'us',
+      WRAP_CARDS: process.env.WRAP_CARDS ?? '0',
       PORT: String(PORT),
     },
   },

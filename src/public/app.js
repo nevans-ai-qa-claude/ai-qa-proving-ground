@@ -114,9 +114,21 @@ async function renderCatalog(searchTerm = '') {
       <p class="product-desc">${escapeHtml(product.description)}</p>
       <p class="product-price" data-testid="product-price">${money(product.price)}</p>
       <p class="product-stock" data-testid="product-stock">${product.stock} in stock</p>
-      <button type="button" data-testid="add-to-cart" data-product-id="${product.id}">Add to cart</button>
+      <button type="button" data-testid="add-to-cart" data-product-id="${product.id}">${escapeHtml(app.faults.buttonCopy || 'Add to cart')}</button>
     `;
-    grid.appendChild(card);
+
+    // WRAP_CARDS is a layout refactor — introducing a positioning wrapper around each
+    // card is among the most ordinary changes a frontend undergoes. Every selector that
+    // addresses a card by its structural relationship to the grid breaks; every selector
+    // that addresses it by identity survives. That contrast is the point.
+    if (app.faults.wrapCards) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'product-card-wrapper';
+      wrapper.appendChild(card);
+      grid.appendChild(wrapper);
+    } else {
+      grid.appendChild(card);
+    }
   }
 
   byTestId('catalog-status').textContent = searchTerm

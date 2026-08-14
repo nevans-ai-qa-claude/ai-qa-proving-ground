@@ -356,17 +356,38 @@ export default class RunEventReporter implements Reporter {
 
   private toArtifacts(attempts: TestResult[], root: string) {
     const all = attempts.flatMap((a) => a.attachments);
+
+    /**
+     * Artifact paths are anchored to the repository root, not to Playwright's `rootDir`.
+     *
+     * `rootDir` resolves to `tests/` here, which emitted every artifact path as
+     * `../artifacts/...` — unresolvable for any consumer working from the repo root, and
+     * wrong for screenshots, video and traces since 1.0.0. Nothing read them until the
+     * locator-healing project needed the DOM, so it went unnoticed.
+     *
+     * Deliberately NOT applied to `result.file`, which stays anchored to `rootDir`.
+     * `testId` is a hash of that path plus the title, and re-anchoring it would change
+     * every id in the corpus and break the history correlation the field exists for.
+     */
+    const repoRoot = path.resolve(__dirname, '..');
+    void root;
+
     const pick = (name: string) =>
-      all.filter((a) => a.name === name && a.path).map((a) => posixRelative(root, a.path!));
+      all.filter((a) => a.name === name && a.path).map((a) => posixRelative(repoRoot, a.path!));
 
     const screenshots = pick('screenshot');
     const video = pick('video')[0];
     const trace = pick('trace')[0];
+    // Attached by the authedPage fixture on failure. Traces technically contain DOM
+    // snapshots, but they are binary archives meant for the Playwright viewer — parsing
+    // one to recover markup is a far worse path than capturing the HTML directly.
+    const dom = pick('dom')[0];
 
     const artifacts: Record<string, unknown> = {};
     if (screenshots.length) artifacts.screenshots = screenshots;
     if (video) artifacts.video = video;
     if (trace) artifacts.trace = trace;
+    if (dom) artifacts.dom = dom;
 
     return Object.keys(artifacts).length ? artifacts : undefined;
   }
