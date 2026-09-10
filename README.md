@@ -79,7 +79,7 @@ the authoritative answer key. Summary:
 | Range | Kind | Count | Toggle |
 |---|---|---|---|
 | `D001`–`D049` | Product bugs — the application is wrong | 12 | `DEFECTS` |
-| `D050`–`D079` | Test bugs — the *specs* are wrong, product is fine | 3 | always present, latent |
+| `D050`–`D079` | Test bugs — the *specs* are wrong, product is fine | 8 | always present, latent |
 | `D080`–`D099` | Environment faults — infrastructure, not code | 2 | `DEFECTS` |
 | `F001`–`F049` | Flakes — nondeterministic | 4 | `FLAKES` |
 
@@ -88,8 +88,9 @@ Each entry carries the classification a correct triage system should assign, plu
 
 ### The confusion pairs
 
-Roughly a third of the manifest is marked `hard`, and those entries are the reason an
-accuracy figure computed here means anything. They are hard **in both directions**:
+Five of the twenty-two catalogued defects are marked `hard` (against nine `easy` and eight
+`moderate`), and those entries are the reason an accuracy figure computed here means
+anything. They are hard **in both directions**:
 
 - **D002** is a genuine duplicate-order product bug that presents as intermittency, because
   the double-click sometimes loses the race. Any classifier treating intermittency as
@@ -106,15 +107,29 @@ Report accuracy stratified by difficulty. A system that scores well on `easy` an
 
 ### The test bugs are latent by design
 
-D050, D051 and D052 **pass on a clean run**. That is deliberate, and it is the most
+All eight test bugs **pass on a clean run**. That is deliberate, and it is the most
 realistic thing in the repository — badly written tests do not announce themselves, they
 sit green for months and then fail for reasons that look like product problems.
+
+Every trigger below is *legitimate product work*, not a defect. That constraint is forced
+rather than stylistic: label precedence puts flake attribution above always-on test bugs,
+so a test bug that only fired under `FLAKES` would be labelled `flake` and would make the
+corpus worse instead of better.
 
 | | Passes when | Fails when |
 |---|---|---|
 | **D050** hardcoded sleep | machine is idle | under load or on slow CI |
 | **D051** positional selector | catalog order is default | `npm run test:reorder` |
 | **D052** order-dependent | file runs in order | shuffled, sharded, or run in isolation |
+| **D053** hard-coded currency string | default locale | `LOCALE=de-DE`, an i18n rollout |
+| **D054** hard-coded catalog count | catalog is default size | `CATALOG_EXTRA=1` |
+| **D055** locator by visible copy | default button copy | `BUTTON_COPY=uk` |
+| **D056** over-specific ancestor chain | default markup | `WRAP_CARDS=1` |
+| **D057** index-based match on a shared class | catalog is default size | `CATALOG_EXTRA=1` |
+
+D055 through D057 are also the seed cases for the self-healing-locator project: each has a
+known-correct replacement on the same element, so heal accuracy can be measured rather
+than eyeballed.
 
 Their value is not that they fail often. It is that when they *do* fail, the correct
 classification is `test-bug`, and a triage system that files a product ticket instead is
@@ -246,56 +261,97 @@ to guess.
 npm run corpus
 ```
 
-90 runs across isolated defects, flake scenarios at several seeds, test-bug isolation runs,
-worker-contention runs and combinations. Isolated single-defect runs are what make
-attribution learnable; combinations then test whether it holds up under co-occurrence. A
-corpus of nothing but chaos runs teaches very little, because every failure co-occurs with
-every other.
+138 runs across 34 scenario groups: isolated defects, flake scenarios at several seeds,
+test-bug isolation runs, worker-contention runs, episode windows and combinations. Isolated
+single-defect runs are what make attribution learnable; combinations then test whether it
+holds up under co-occurrence. A corpus of nothing but chaos runs teaches very little,
+because every failure co-occurs with every other.
+
+### Or download the frozen one
+
+Generating your own produces a corpus of the same *shape* but not the same *data* — flake
+outcomes are seeded per scenario and are not bit-for-bit reproducible under parallel
+workers. Every figure published by this project and by
+[ai-qa-failure-triage](https://github.com/nevans-ai-qa-claude/ai-qa-failure-triage) is
+computed against one pinned corpus, downloadable here:
+
+**[corpus-v2](https://github.com/nevans-ai-qa-claude/ai-qa-proving-ground/releases/tag/corpus-v2)**
+— 138 runs, contract 1.2.0, 453 KB.
+
+```bash
+curl -L -o corpus-v2.zip https://github.com/nevans-ai-qa-claude/ai-qa-proving-ground/releases/download/corpus-v2/corpus-v2.zip
+unzip corpus-v2.zip -d artifacts/
+```
+
+```
+sha256  4fd26ab630103d1075b59e2676b9ebe67190e0e97079a15e7eefd37fd40a57f6
+```
+
+Comparisons across corpus versions are not meaningful — class composition moves between
+them, and macro-averaged scores move with it. Cite the tag alongside any number.
 
 ### Measured composition
 
-90 runs, 2,498 results, 376 non-pass labelled, 17 unlabelled, 90/90 schema-valid.
+Corpus v2, the frozen release this repository publishes: 138 runs, 4,560 results, 382
+non-pass labelled, 52 unlabelled, 138/138 schema-valid.
 
 | Class | Count | Share of non-pass |
 |---|---|---|
-| environment | 145 | 38.6% |
-| flake | 130 | 34.6% |
-| product-bug | 91 | 24.2% |
-| test-bug | 10 | 2.7% |
+| product-bug | 117 | 30.6% |
+| environment | 117 | 30.6% |
+| flake | 84 | 22.0% |
+| test-bug | 64 | 16.8% |
 
-**`test-bug` is structurally underrepresented, and more runs will not fix it.** There are
-only three test bugs in the manifest, and D050 (the hardcoded sleep) needs real load to
-fire. Repeats would add count without adding diversity. The fix is more *distinct* badly
-written tests — a duplicated assertion, a test that asserts on a locale-formatted date, one
-that depends on a fixture it never requested — not more executions of the same three.
+The 52 unlabelled results are the design working as intended: where defects and flakes are
+both active and no single cause clearly owns the failure, the reporter declines to guess.
 
-Treat 2.7% as a known limitation when reporting any per-class metric, and weight accordingly.
+**`test-bug` used to be the structural weakness here and no longer is.** An earlier snapshot
+of this corpus carried only 10 test-bug results, 2.7% of non-pass, off the back of just
+three test bugs in the manifest. That note prescribed the fix — more *distinct* badly
+written tests rather than more executions of the same three — and the manifest now carries
+eight, taking the class to 16.8%.
+
+**Read every downstream comparison with that in mind.** A classifier's macro-averaged score
+rises when an easy class grows, whether or not the classifier improved, and `test-bug` is
+the class deterministic clustering resolves most reliably. Movement in the numbers reported
+by [ai-qa-failure-triage](https://github.com/nevans-ai-qa-claude/ai-qa-failure-triage)
+between corpus versions is substantially composition, not method. Comparisons are only
+meaningful within a single frozen corpus.
 
 ### The ceiling on evidence-only classification
 
-Measured across the corpus: how much can deterministic clustering achieve before any model
-call, and how pure are the resulting clusters?
+How much can deterministic clustering resolve before any model call? Regenerate with
+`python -m triage ceiling` from the failure-triage checkout — these figures are computed
+from the same key functions the classifier uses, so they cannot drift away from it.
 
-| Cluster key | Clusters | Pure | Ceiling |
-|---|---|---|---|
-| signature only | 31 | 12 | 9.3% |
-| testId + signature | 51 | 20 | 20.2% |
-| testId + expected/actual | 66 | 37 | 34.3% |
+| Cluster key | Clusters | Pure | Pure share | Majority ceiling |
+|---|---|---|---|---|
+| signature only | 32 | 15 | 13.9% | 65.4% |
+| testId + signature | 60 | 28 | 30.4% | 71.7% |
+| testId + expected/actual | 75 | 44 | 44.0% | 75.1% |
 
-**Even the best key tops out at ~34%.** This is not a normalisation bug. The same test
-failing with byte-identical evidence is a product bug in one run and a flake in another,
-and from a single failure those are genuinely indistinguishable.
+Two figures, because "ceiling" is ambiguous and the ambiguity matters. **Pure share** is the
+fraction of labelled failures in clusters whose members all carry one classification — the
+cases resolved with no residual doubt. **Majority ceiling** counts mixed clusters at their
+most common class, and is the true upper bound for any classifier using that key alone.
+
+**The best key still leaves 24.9% unresolvable from single-failure evidence.** That is not a
+normalisation bug. The same test failing with byte-identical evidence is a product bug in
+one run and a flake in another, and from one failure those are genuinely indistinguishable.
+
+It also bounds what a model can be expected to add. The deterministic baseline measures
+69.2% accuracy against a 75.1% ceiling, so it already captures most of what its key can
+deliver. The residual is not waiting on better prompting — it needs information that is not
+present in a single failure.
 
 The discriminator is **cross-run frequency**, which lives in the corpus rather than in any
 individual result. A test failing 3% of the time is a flake; the same test failing on every
 run since a given commit is a product bug. Any classifier built on this contract should
-consume run *history*, not one failure at a time — that feature will move the number far
-more than better prompting will.
+consume run *history*, not one failure at a time.
 
-For reference, the archived v1 corpus scored 41.7% on the best key. v2 scores lower because
-it is harder, not because it regressed: v1 was 14.7% flake mass against v2's 34.6%, and
-flakes are the class that collides with product bugs. A corpus that flattered a classifier
-would be the failure mode, not the goal.
+That remains a hypothesis about where the signal *should* be, and it is worth naming that
+downstream attempts to exploit it have so far failed to beat clustering. A corpus that
+flattered the hypothesis would be the failure mode, not the goal.
 
 ---
 
@@ -401,3 +457,13 @@ downstream:
   is what catches drift; run it on a schedule.
 - The in-memory store means no persistence-layer defects. A database-backed variant would
   add a genuinely different failure class, and is not currently modelled.
+- **Run events do not record the product configuration that triggers a test bug.** The
+  `injection` block captures `DEFECTS` and `FLAKES` faithfully, but the environment
+  variables behind the test-bug scenarios — `LOCALE`, `CATALOG_ORDER`, `CATALOG_EXTRA`,
+  `BUTTON_COPY`, `WRAP_CARDS` — are not written to the event. In corpus v2 that leaves 34
+  runs indistinguishable from a clean run in the archived data, even though a specific
+  legitimate configuration was active. Ground-truth labelling is unaffected, because it
+  derives from the test annotations rather than from the event. But it does undercut the
+  claim that an archived run is fully self-describing, and a reader cannot tell from the
+  event alone why a test bug fired. Closing it means recording scenario configuration in
+  `injection` and regenerating the corpus, which is a contract change.
