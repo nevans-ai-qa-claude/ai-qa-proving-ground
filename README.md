@@ -4,7 +4,7 @@
 with toggleable fault injection and a baseline Playwright suite that emits structured run
 events conforming to a shared contract.
 
-Part of [nevans-ai-qa-claude](https://github.com/nevans-ai-qa-claude) — a series exploring
+Part of [nevans-ai-qa-claude](https://github.com/nevans-ai-qa-claude), a series exploring
 how far AI can usefully be pushed into a test automation workflow, and where it should not
 go. This repository is the measuring instrument the rest are scored against.
 
@@ -58,7 +58,7 @@ npm run test:clean
 That last command should be **entirely green**. If it is not, something is wrong with the
 environment, and nothing downstream of this repository is trustworthy until it is fixed.
 
-The three seeded test bugs pass here, which is the point of them — see
+The three seeded test bugs pass here, which is the point of them (see
 [latent by design](#the-test-bugs-are-latent-by-design) below.
 
 To drive the app by hand:
@@ -78,10 +78,10 @@ the authoritative answer key. Summary:
 
 | Range | Kind | Count | Toggle |
 |---|---|---|---|
-| `D001`–`D049` | Product bugs — the application is wrong | 12 | `DEFECTS` |
-| `D050`–`D079` | Test bugs — the *specs* are wrong, product is fine | 8 | always present, latent |
-| `D080`–`D099` | Environment faults — infrastructure, not code | 2 | `DEFECTS` |
-| `F001`–`F049` | Flakes — nondeterministic | 4 | `FLAKES` |
+| `D001`–`D049` | Product bugs: the application is wrong | 12 | `DEFECTS` |
+| `D050`–`D079` | Test bugs: the *specs* are wrong, product is fine | 8 | always present, latent |
+| `D080`–`D099` | Environment faults: infrastructure, not code | 2 | `DEFECTS` |
+| `F001`–`F049` | Flakes: nondeterministic | 4 | `FLAKES` |
 
 Each entry carries the classification a correct triage system should assign, plus a
 `difficulty` rating.
@@ -108,7 +108,7 @@ Report accuracy stratified by difficulty. A system that scores well on `easy` an
 ### The test bugs are latent by design
 
 All eight test bugs **pass on a clean run**. That is deliberate, and it is the most
-realistic thing in the repository — badly written tests do not announce themselves, they
+realistic thing in the repository. Badly written tests do not announce themselves, they
 sit green for months and then fail for reasons that look like product problems.
 
 Every trigger below is *legitimate product work*, not a defect. That constraint is forced
@@ -145,7 +145,7 @@ generator without a config-file layer in between.
 ```bash
 DEFECTS=none           # clean baseline
 DEFECTS=all            # everything
-DEFECTS=D001,D006      # explicit list — unknown ids throw rather than silently no-op
+DEFECTS=D001,D006      # explicit list; unknown ids throw rather than silently no-op
 
 FLAKES=none
 FLAKES=all             # every flake at its manifest default probability
@@ -160,8 +160,8 @@ FLAKE_SEED=1337        # PRNG seed
 |---|---|
 | `npm run test:clean` | Baseline. Only the always-on test bugs should fail. |
 | `npm run test:product` | The twelve product bugs. The most useful defect run. |
-| `npm run test:defects` | Every defect, including `D080` — see the note below. |
-| `npm run test:flaky` | Flakes only — the nondeterminism corpus. |
+| `npm run test:defects` | Every defect, including `D080` (see the note below). |
+| `npm run test:flaky` | Flakes only, the nondeterminism corpus. |
 | `npm run test:chaos` | Everything at once. |
 | `npm run test:reorder` | Legitimate catalog re-sort. Only the brittle-selector spec breaks. |
 | `npm run test:parallel` | Four workers, surfacing order-dependence faults. |
@@ -171,7 +171,7 @@ blackout in which nothing else is observable. It is a legitimate scenario and a 
 environment-classification case, but it is not the run you want for exercising the product
 bugs. Use `npm run test:product` for that.
 
-### On reproducibility — an honest caveat
+### On reproducibility: a caveat
 
 `FLAKE_SEED` makes the *sequence of flake decisions* deterministic. It does **not** make a
 run bit-for-bit reproducible under parallel workers, because the order in which requests
@@ -198,19 +198,19 @@ npm run validate:events
 
 Three fields deserve attention:
 
-**`error.signature`** — the error message with everything variable (numbers, uuids,
+**`error.signature`**: the error message with everything variable (numbers, uuids,
 timestamps, paths, quoted literals) replaced by placeholders. Identical root causes collapse
 to identical signatures, so you can cluster deterministically *before* spending a single
 token on a model. This is the field that makes triage cheap.
 
-**`injection`** — which faults were active and what seed was used. Read from the *server*,
+**`injection`**: which faults were active and what seed was used. Read from the *server*,
 not from the runner's own environment, because the two are separate processes and can drift
 apart. It makes an archived run self-describing.
 
-**`groundTruth`** — the correct answer, derived automatically by joining each test's
+**`groundTruth`**: the correct answer, derived automatically by joining each test's
 annotations against the server's injection state. It is explicitly optional and marked
 non-authoritative. **Consumers must not read it at inference time.** When the label cannot
-be derived, the reporter omits it rather than guessing — a missing label shrinks the
+be derived, the reporter omits it rather than guessing, because a missing label shrinks the
 evaluation set visibly, whereas a fabricated one corrupts every figure computed from it
 invisibly.
 
@@ -219,7 +219,7 @@ invisibly.
 Precedence is the whole game here. Getting it wrong produces data that is confidently
 wrong, which is worse than data that is missing.
 
-1. **An injected defect the test declares.** Unambiguous — it was deliberately switched on.
+1. **An injected defect the test declares.** Unambiguous, because it was deliberately switched on.
 2. **Infrastructure-only runs.** D080 rejects every request and D081 breaks authentication,
    so nothing downstream can work. Most failures never mention 503 (a failed login surfaces
    as a visibility timeout three steps later) but all of them are `environment`.
@@ -230,7 +230,7 @@ wrong, which is worse than data that is missing.
 5. **Otherwise, no label.**
 
 Step 4 sitting *below* step 3 is the subtle part. An always-on test bug cannot claim every
-failure of the spec it lives in — the D051 spec also fails under flake injection, from an
+failure of the spec it lives in, because the D051 spec also fails under flake injection, from an
 intercepted click rather than its brittle selector. Labelling that `test-bug` would penalise
 a classifier for being right.
 
@@ -269,14 +269,14 @@ because every failure co-occurs with every other.
 
 ### Or download the frozen one
 
-Generating your own produces a corpus of the same *shape* but not the same *data* — flake
+Generating your own produces a corpus of the same *shape* but not the same *data*, because flake
 outcomes are seeded per scenario and are not bit-for-bit reproducible under parallel
 workers. Every figure published by this project and by
 [ai-qa-failure-triage](https://github.com/nevans-ai-qa-claude/ai-qa-failure-triage) is
 computed against one pinned corpus, downloadable here:
 
-**[corpus-v2](https://github.com/nevans-ai-qa-claude/ai-qa-proving-ground/releases/tag/corpus-v2)**
-— 138 runs, contract 1.2.0, 453 KB.
+**[corpus-v2](https://github.com/nevans-ai-qa-claude/ai-qa-proving-ground/releases/tag/corpus-v2)**:
+138 runs, contract 1.2.0, 453 KB.
 
 ```bash
 curl -L -o corpus-v2.zip https://github.com/nevans-ai-qa-claude/ai-qa-proving-ground/releases/download/corpus-v2/corpus-v2.zip
@@ -287,7 +287,7 @@ unzip corpus-v2.zip -d artifacts/
 sha256  4fd26ab630103d1075b59e2676b9ebe67190e0e97079a15e7eefd37fd40a57f6
 ```
 
-Comparisons across corpus versions are not meaningful — class composition moves between
+Comparisons across corpus versions are not meaningful, because class composition moves between
 them, and macro-averaged scores move with it. Cite the tag alongside any number.
 
 ### Measured composition
@@ -307,8 +307,8 @@ both active and no single cause clearly owns the failure, the reporter declines 
 
 **`test-bug` used to be the structural weakness here and no longer is.** An earlier snapshot
 of this corpus carried only 10 test-bug results, 2.7% of non-pass, off the back of just
-three test bugs in the manifest. That note prescribed the fix — more *distinct* badly
-written tests rather than more executions of the same three — and the manifest now carries
+three test bugs in the manifest. That note prescribed the fix, more *distinct* badly
+written tests rather than more executions of the same three, and the manifest now carries
 eight, taking the class to 16.8%.
 
 **Read every downstream comparison with that in mind.** A classifier's macro-averaged score
@@ -321,7 +321,7 @@ meaningful within a single frozen corpus.
 ### The ceiling on evidence-only classification
 
 How much can deterministic clustering resolve before any model call? Regenerate with
-`python -m triage ceiling` from the failure-triage checkout — these figures are computed
+`python -m triage ceiling` from the failure-triage checkout. These figures are computed
 from the same key functions the classifier uses, so they cannot drift away from it.
 
 | Cluster key | Clusters | Pure | Pure share | Majority ceiling |
@@ -331,7 +331,7 @@ from the same key functions the classifier uses, so they cannot drift away from 
 | testId + expected/actual | 75 | 44 | 44.0% | 75.1% |
 
 Two figures, because "ceiling" is ambiguous and the ambiguity matters. **Pure share** is the
-fraction of labelled failures in clusters whose members all carry one classification — the
+fraction of labelled failures in clusters whose members all carry one classification, which are the
 cases resolved with no residual doubt. **Majority ceiling** counts mixed clusters at their
 most common class, and is the true upper bound for any classifier using that key alone.
 
@@ -341,7 +341,7 @@ one run and a flake in another, and from one failure those are genuinely indisti
 
 It also bounds what a model can be expected to add. The deterministic baseline measures
 69.2% accuracy against a 75.1% ceiling, so it already captures most of what its key can
-deliver. The residual is not waiting on better prompting — it needs information that is not
+deliver. The residual is not waiting on better prompting. It needs information that is not
 present in a single failure.
 
 The discriminator is **cross-run frequency**, which lives in the corpus rather than in any
@@ -359,7 +359,7 @@ flattered the hypothesis would be the failure mode, not the goal.
 
 Two checks, at different costs.
 
-**Fast, every commit** — structural consistency between the manifest, the application code
+**Fast, every commit**: structural consistency between the manifest, the application code
 and the specs:
 
 ```bash
@@ -369,11 +369,11 @@ npm run check:consistency
 It catches the drift that keeps the suite green while quietly making the corpus wrong: a
 manifest entry nothing gates on, a defect no spec is annotated against, a `defectOn()` call
 naming an id that no longer exists and therefore silently does nothing. It found a real bug
-during the initial build — F003 was catalogued as toggleable but implemented as
+during the initial build: F003 was catalogued as toggleable but implemented as
 structurally always-on, which would have made it impossible to generate the F003-free runs
 needed to isolate D012 from D052.
 
-**Slow, on a schedule** — proof that each defect genuinely fails the test that claims to
+**Slow, on a schedule**: proof that each defect genuinely fails the test that claims to
 catch it:
 
 ```bash
@@ -384,8 +384,8 @@ Enables each defect alone and asserts the test that claims to detect it actually
 
 This is the test suite for the test suite. If the manifest claims D006 is caught by a given
 spec and that link quietly breaks, every accuracy number computed from the corpus becomes
-meaningless while continuing to look entirely plausible. Slow — one full suite execution per
-defect — so it belongs on a CI schedule, not in the inner loop.
+meaningless while continuing to look entirely plausible. It is slow (one full suite execution per
+defect), so it belongs on a CI schedule, not in the inner loop.
 
 ---
 
@@ -399,7 +399,7 @@ src/
   faults.ts         injection control plane and seeded PRNG
   routes.ts         API, with every defect site annotated by id
   store.ts          in-memory data, resettable
-  public/           hand-authored DOM (deliberately — see below)
+  public/           hand-authored DOM (deliberately, see below)
 tests/
   fixtures.ts       auto-reset, auth helpers, the targets() annotation helper
   api/              API specs
@@ -422,7 +422,7 @@ make that much harder to reason about.
 
 ### Why the test suite contains bad tests
 
-D050, D051 and D052 are deliberately badly written — a hardcoded sleep, a positional
+D050, D051 and D052 are deliberately badly written: a hardcoded sleep, a positional
 selector, an order-dependent assertion. They are not oversights; they are the test-bug
 ground truth. Without them a classifier has no negative examples and will happily blame the
 product for every failure, which is exactly the false-positive behaviour that destroys trust
@@ -438,11 +438,11 @@ That is deliberate. This is the measuring instrument, and an instrument that sha
 components with the thing it measures would not be worth much. The AI lives in the projects
 downstream:
 
-1. **Failure triage and clustering** — consumes `artifacts/runs/*.json`, scored against
+1. **Failure triage and clustering**: consumes `artifacts/runs/*.json`, scored against
    `groundTruth`.
-2. **Self-healing locators** — consumes the DOM artifacts and D051.
-3. **LLM evaluation harness** — a different problem, same contract.
-4. **Mutation-scored test generation** — generates specs for this app and proves they kill
+2. **Self-healing locators**: consumes the DOM artifacts and D051.
+3. **LLM evaluation harness**: a different problem, same contract.
+4. **Mutation-scored test generation**: generates specs for this app and proves they kill
    mutants.
 
 ---
@@ -459,8 +459,8 @@ downstream:
   add a genuinely different failure class, and is not currently modelled.
 - **Run events do not record the product configuration that triggers a test bug.** The
   `injection` block captures `DEFECTS` and `FLAKES` faithfully, but the environment
-  variables behind the test-bug scenarios — `LOCALE`, `CATALOG_ORDER`, `CATALOG_EXTRA`,
-  `BUTTON_COPY`, `WRAP_CARDS` — are not written to the event. In corpus v2 that leaves 34
+  variables behind the test-bug scenarios (`LOCALE`, `CATALOG_ORDER`, `CATALOG_EXTRA`,
+  `BUTTON_COPY`, `WRAP_CARDS`) are not written to the event. In corpus v2 that leaves 34
   runs indistinguishable from a clean run in the archived data, even though a specific
   legitimate configuration was active. Ground-truth labelling is unaffected, because it
   derives from the test annotations rather than from the event. But it does undercut the
